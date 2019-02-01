@@ -1,0 +1,23 @@
+{
+    "name": "idealcms/mailer",
+    "description": "Максимально простой отправщик писем на PHP (с поддержкой отправки через SMTP)",
+    "homepage": "https://github.com/idealcms/mailer",
+    "license": "LGPL-3.0",
+    "authors": [
+        {
+            "name": "Paul Nikitin",
+            "email": "top@neox.ru",
+            "homepage": "http://idealcms.ru/",
+            "role": "Developer"
+        }
+    ],
+    "type": "library",
+    "license": "LGPL-3.0",
+    "autoload": {
+        "psr-4": {
+            "Ideal\\": "src/"
+        }
+    },
+
+    "require": {}
+}
