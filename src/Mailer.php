@@ -75,8 +75,7 @@ class Mailer
      */
     public function isEmail($mail)
     {
-        $filter = filter_var($mail, FILTER_VALIDATE_EMAIL);
-        return ($filter == $mail);
+        return filter_var($mail, FILTER_VALIDATE_EMAIL);
     }
 
     /**
@@ -107,7 +106,9 @@ class Mailer
         if ($this->isSmtp) {
             $result = $this->mailSmtp($from, $to);
         } else {
-            $result = mail($to, $this->subj, $this->body, 'From: ' . $from . "\n" . $this->header);
+            // Иначе отправляем через стандартную функцию mail()
+            $fromClear = filter_var($a, FILTER_SANITIZE_EMAIL);
+            $result = mail($to, $this->subj, $this->body, 'From: ' . $from . "\n" . $this->header, '-f ' . $fromClear);
         }
         return $result;
     }
@@ -153,7 +154,7 @@ class Mailer
         // Добавляем plain-версию
         $body .= '--' . $boundary . "\n";
         $body .= "Content-Type: text/plain; charset=utf-8\n";
-        $body .= "Content-Transfer-Encoding: 8bit\n\n";
+        $body .= "Content-Transfer-Encoding: quoted-printable\n\n";
         $body .= quoted_printable_encode($this->bodyPlain) . "\n\n";
 
         // Добавляем html-версию
@@ -354,7 +355,7 @@ class Mailer
         }
 
         // Отправляем текст письма со всеми заголовками
-        fputs($smtpConn, $this->header ."\n". $this->body . "\n.\n");
+        fputs($smtpConn, $this->header ."\n\n". $this->body . "\n.\n");
         $code = substr($this->getData($smtpConn), 0, 3);
         if ($code != 250) {
             fclose($smtpConn);
