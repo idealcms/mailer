@@ -44,6 +44,27 @@ class Mailer
     protected $smtp = array();
 
     /**
+     * Прикрепляем данные к письму в виде файла
+     *
+     * @param string $data Содержимое прикрепляемого файла
+     * @param string $type Тип прикрепляемого файла
+     * @param string $saveAs Имя, под которым нужно прикрепить файл
+     * @return boolean
+     */
+    public function attach($data, $type, $saveAs)
+    {
+        $name = preg_replace("/(.+\/)/", '', $saveAs);
+
+        // TODO преобразование $name из любой кодировки в UTF8
+        $this->attach[$name] = array(
+            'type' => $type,
+            'data' => $data,
+        );
+
+        return true;
+    }
+    
+    /**
      * Прикрепляем файл к письму, если файл существует
      *
      * @param string $path Путь к прикрепляемому файлу
