@@ -128,7 +128,7 @@ class Mailer
             $result = $this->mailSmtp($from, $to);
         } else {
             // Иначе отправляем через стандартную функцию mail()
-            $fromClear = filter_var($a, FILTER_SANITIZE_EMAIL);
+            $fromClear = filter_var($from, FILTER_SANITIZE_EMAIL);
             $result = mail($to, $this->subj, $this->body, 'From: ' . $from . "\n" . $this->header, '-f ' . $fromClear);
         }
         return $result;
@@ -145,8 +145,8 @@ class Mailer
         // Если выбрана отправка письма только в html-виде
         if (!empty($this->bodyHtml) && ($this->bodyPlain === '')) {
             $body = "Content-type: text/html; charset=utf-8\n"
-                    . "Content-transfer-encoding: quoted-printable\n\n";
-            $body .= quoted_printable_encode($this->bodyHtml) . "\n\n";
+                    . "Content-transfer-encoding: base64\n\n";
+            $body .= chunk_split(base64_encode($this->bodyHtml)) . "\n\n";
             return $body;
         }
 
@@ -175,14 +175,14 @@ class Mailer
         // Добавляем plain-версию
         $body .= '--' . $boundary . "\n";
         $body .= "Content-Type: text/plain; charset=utf-8\n";
-        $body .= "Content-Transfer-Encoding: quoted-printable\n\n";
-        $body .= quoted_printable_encode($this->bodyPlain) . "\n\n";
+        $body .= "Content-Transfer-Encoding: base64\n\n";
+        $body .= chunk_split(base64_encode($this->bodyPlain)) . "\n\n";
 
         // Добавляем html-версию
         $body .= '--' . $boundary . "\n";
         $body .= "Content-Type: text/html; charset=utf-8\n";
-        $body .= "Content-Transfer-Encoding: quoted-printable\n\n";
-        $body .= quoted_printable_encode($this->bodyHtml) . "\n\n";
+        $body .= "Content-Transfer-Encoding: base64\n\n";
+        $body .= chunk_split(base64_encode($this->bodyHtml)) . "\n\n";
 
         // Завершение блока alternative
         $body .= '--' . $boundary . "--\n\n";
