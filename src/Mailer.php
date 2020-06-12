@@ -40,10 +40,35 @@ class Mailer
     /** @var bool Флаг, использовать/не использовать smtp при отправке сообщения */
     protected $isSmtp = false;
 
+    /** @var bool Нужно ли устанавливать дополнительный параметр From при отправке через Sendmail */
+    protected $isFromParameter = true;
+
     /** @var array Массив настроек подключения к SMTP */
     protected $smtp = array();
 
-    /**
+    /** @var string Адреса почты для скрытой отправки */
+    protected $bcc = '';
+
+     /**
+     * Инициализация настроек smtp, если класс вызывается в рамках Ideal CMS
+     *
+     * @throws \Exception
+     */
+    public function __construct()
+    {
+        if (class_exists('\Ideal\Core\Config')) {
+            // Если мы находимся в рамках Ideal CMS - пытаемся взять настройки smtp из конфига
+            $config = \Ideal\Core\Config::getInstance();
+            if (!empty($config->smtp['server']) && !empty($config->smtp['isActive'])) {
+                $this->setSmtp($config->smtp);
+            }
+            if (isset($config->smtp['isFromParameter'])) {
+                $this->isFromParameter = $config->smtp['isFromParameter'];
+            }
+        }
+    }
+
+   /**
      * Прикрепляем данные к письму в виде файла
      *
      * @param string $data Содержимое прикрепляемого файла
@@ -123,13 +148,31 @@ class Mailer
             }
             $this->body = implode("\n", $body);
         }
-        // Если есть все данные для отправки по SMTP, то используем его
+
+        // К $from могут быть прикреплены Bcc
+        $matches = array();
+        preg_match('/Bcc:(.*)/i', $from, $matches);
+        $bcc = empty($matches[1]) ? '' : trim($matches[1]);
+
+        // Если был указан Bcc отрезаем его от $from
+        $froms = explode('Bcc:', $from);
+        $from = trim($froms[0]);
+
+        $bcc = empty($bcc) ? $this->getBcc() : '';
+
         if ($this->isSmtp) {
-            $result = $this->mailSmtp($from, $to);
+            // Если есть все данные для отправки по SMTP, то используем его
+            $result = $this->mailSmtp($from, $to, $bcc);
         } else {
             // Иначе отправляем через стандартную функцию mail()
+            $bcc = empty($bcc) ? '' : 'Bcc: ' . $bcc . "\n";
+            $headers = 'From: ' . $from . "\n" . $bcc . $this->header;
+            if ($this->isFromParameter) {
             $fromClear = filter_var($from, FILTER_SANITIZE_EMAIL);
-            $result = mail($to, $this->subj, $this->body, 'From: ' . $from . "\n" . $this->header, '-f ' . $fromClear);
+                $result = mail($to, $this->subj, $this->body, $headers, '-f ' . $fromClear);
+            } else {
+                $result = mail($to, $this->subj, $this->body, $headers);
+            }
         }
         return $result;
     }
@@ -280,32 +323,22 @@ class Mailer
      * Отправляет сообщение посредством SMTP
      *
      * @param string $from Адрес отправителя
-     * @param string $receiver Адреса получателей
+     * @param string $to Адреса получателей
      * @return bool Признак успеха/провала отправки сообщения
      */
-    protected function mailSmtp($from, $receiver)
+    protected function mailSmtp($from, $to, $bcc = '')
     {
-        // Формируем массив получателей
-        $receiver = explode(',', $receiver);
-        foreach ($receiver as $key => $value) {
-            $receiver[$key] = trim($value);
-        }
-
         $server = $this->smtp['server'];
         $port = $this->smtp['port'];
         $user = $this->smtp['user'];
         $password = $this->smtp['password'];
         $domain = $this->smtp['domain'];
 
-        $formatDomain = function ($str) {
-            return str_replace("+", "_", str_replace("%", "=", urlencode($str)));
-        };
-
         // Формируем заголовки
-        $header = "From: =?UTF-8?Q?" . $formatDomain($domain) . "?= <{$from}>\n";
-        $header .= "Reply-To: =?UTF-8?Q?" . $formatDomain($domain) . "?= <{$from}>\n";
-        $header .= "Message-ID: <" . time() . "." . date("YmjHis") . "@{$domain}>\n";
-        $header .= "To: =?UTF-8?Q?" . $formatDomain($receiver[0]) . "?= <{$receiver[0]}>\n";
+        $header = 'From: ' . $this->prepareEmail($from) . "\n";
+        $header .= 'Reply-To: ' . $this->prepareEmail($from) . "\n";
+        $header .= 'Message-ID: <' . time() . '.' . date('YmjHis') . "@{$domain}>\n";
+        $header .= 'To: ' . $this->prepareEmail($to) . "\n";
         $header .= "Subject: {$this->subj}\n";
         $this->header = $header . $this->header;
 
@@ -348,7 +381,7 @@ class Mailer
             return false;
         }
 
-        // Посылаем информацию об отправителе и размере писма
+        // Посылаем информацию об отправителе и размере письма
         $sizeMsg = strlen($this->header ."\n". $this->body);
         fputs($smtpConn, "MAIL FROM:<{$user}> SIZE=" . $sizeMsg . "\n");
         $code = substr($this->getData($smtpConn), 0, 3);
@@ -358,7 +391,12 @@ class Mailer
         }
 
         // Посылаем информацию о получателях
-        foreach ($receiver as $value) {
+        $recipients = array_merge(explode(',', $to), explode(',', $bcc));
+        foreach ($recipients as $value) {
+            $value = trim(filter_var($value, FILTER_SANITIZE_EMAIL));
+            if (empty($value)) {
+                continue;
+            }
             fputs($smtpConn, "RCPT TO:<{$value}>\n");
             $code = substr($this->getData($smtpConn), 0, 3);
             if ($code != 250 && $code != 251) {
@@ -398,6 +436,7 @@ class Mailer
     protected function getData($smtpConn)
     {
         $data = "";
+        // todo на fgets могут возникнуть ошибки, поэтому нужно их обработать
         while ($str = fgets($smtpConn, 515)) {
             $data .= $str;
             if (substr($str, 3, 1) == " ") {
@@ -409,6 +448,8 @@ class Mailer
 
     /**
      * Определяет достаточность предоставленных параметров для использования SMTP
+     *
+     * @throws \Exception
      */
     public function setSmtp($params)
     {
@@ -420,6 +461,60 @@ class Mailer
             }
         }
         $this->smtp = $params;
-        $this->isSmtp = true;
+        $this->isSmtp = !isset($params['isActive']) || (isset($params['isActive']) && $params['isActive']);
+    }
+
+    /**
+     * Подготовка адресов email для использования в заголовках
+     * Адреса могут быть в формате: Иван Петров <ivan@petrov.ru>
+     *
+     * @param string $value Строка с адресами (через запятую)
+     * @return string
+     */
+    protected function prepareEmail($value)
+    {
+        $emails = explode(',', $value);
+        foreach ($emails as $k => $email) {
+            if (empty(trim($email))) {
+                unset($emails[$k]);
+                continue;
+            }
+            if (strpos($email, '<') === false) {
+                continue;
+            }
+            preg_match('/(.*)<(.*)>/', $email, $matches);
+            $emails[$k] = '=?UTF-8?B?' . base64_encode(trim($matches[1])) . '?= <' . trim($matches[2]) . '>';
+        }
+
+        return implode(', ', $emails);
+    }
+
+    /**
+     * Установка адресов почты для скрытой отправки
+     *
+     * @param string $email Адреса почты через запятую
+     */
+    public function setBcc($email)
+    {
+        $this->bcc = $email;
+    }
+
+    /**
+     * Получение адресов почты для скрытой отправки
+     *
+     * @return string Адреса почты через запятую
+     */
+    public function getBcc()
+    {
+        if (class_exists('\Ideal\Core\Config')) {
+            // Получаем конфигурационные данные сайта
+            /** @noinspection PhpUnnecessaryFullyQualifiedNameInspection */
+            $config = \Ideal\Core\Config::getInstance();
+            if (!empty($config->mailBcc)) {
+                return $config->mailBcc;
+            }
+        }
+
+        return $this->bcc;
     }
 }
