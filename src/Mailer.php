@@ -324,6 +324,7 @@ class Mailer
      *
      * @param string $from Адрес отправителя
      * @param string $to Адреса получателей
+     * @param string $bcc Адреса скрытых получателей
      * @return bool Признак успеха/провала отправки сообщения
      */
     protected function mailSmtp($from, $to, $bcc = '')
@@ -337,10 +338,10 @@ class Mailer
         // Формируем заголовки
         $header = 'From: ' . $this->prepareEmail($from) . "\n";
         $header .= 'Reply-To: ' . $this->prepareEmail($from) . "\n";
-        $header .= 'Message-ID: <' . time() . '.' . date('YmjHis') . "@{$domain}>\n";
+        $header .= 'Message-ID: <' . microtime(true) . '.' . date('YmjHis') . "@{$domain}>\n";
         $header .= 'To: ' . $this->prepareEmail($to) . "\n";
         $header .= "Subject: {$this->subj}\n";
-        $this->header = $header . $this->header;
+        $header .= $this->header;
 
         // Соединяемся с почтовым сервером
         $smtpConn = fsockopen($server, $port, $errno, $errstr, 30);
@@ -382,7 +383,7 @@ class Mailer
         }
 
         // Посылаем информацию об отправителе и размере письма
-        $sizeMsg = strlen($this->header ."\n". $this->body);
+        $sizeMsg = strlen($header ."\n". $this->body);
         fputs($smtpConn, "MAIL FROM:<{$user}> SIZE=" . $sizeMsg . "\n");
         $code = substr($this->getData($smtpConn), 0, 3);
         if ($code != 250) {
@@ -414,7 +415,7 @@ class Mailer
         }
 
         // Отправляем текст письма со всеми заголовками
-        fputs($smtpConn, $this->header ."\n\n". $this->body . "\n.\n");
+        fputs($smtpConn, $header ."\n\n". $this->body . "\n.\n");
         $code = substr($this->getData($smtpConn), 0, 3);
         if ($code != 250) {
             fclose($smtpConn);
