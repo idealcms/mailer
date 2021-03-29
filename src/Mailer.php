@@ -523,4 +523,14 @@ class Mailer
 
         return $this->bcc;
     }
+
+    /**
+     * Устанавливает необходимость при отправке с помощью sender указывать -f параметр
+     *
+     * @param bool $isActive
+     */
+    public function setFromParameter($isActive)
+    {
+        $this->isFromParameter = $isActive;
+    }
 }
