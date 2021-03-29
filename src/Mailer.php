@@ -1,6 +1,8 @@
 <?php
 namespace Ideal;
 
+use Exception;
+
 /**
  * Класс отправки почтовых сообщений
  *
@@ -49,15 +51,16 @@ class Mailer
     /** @var string Адреса почты для скрытой отправки */
     protected $bcc = '';
 
-     /**
+    /**
      * Инициализация настроек smtp, если класс вызывается в рамках Ideal CMS
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function __construct()
     {
         if (class_exists('\Ideal\Core\Config')) {
             // Если мы находимся в рамках Ideal CMS - пытаемся взять настройки smtp из конфига
+            /** @noinspection PhpUndefinedNamespaceInspection */
             $config = \Ideal\Core\Config::getInstance();
             if (!empty($config->smtp['server']) && !empty($config->smtp['isActive'])) {
                 $this->setSmtp($config->smtp);
@@ -68,7 +71,7 @@ class Mailer
         }
     }
 
-   /**
+    /**
      * Прикрепляем данные к письму в виде файла
      *
      * @param string $data Содержимое прикрепляемого файла
@@ -130,6 +133,7 @@ class Mailer
      * @param string $from адрес откуда будет отправлено письмо
      * @param string $to адрес кому будет отправлено письмо
      * @return bool
+     * @throws Exception
      */
     public function sent($from, $to)
     {
@@ -181,7 +185,7 @@ class Mailer
      * Создание основного текста письма вместе с заголовками
      *
      * @return string
-     * @throws \Exception
+     * @throws Exception
      */
     protected function getTextPart()
     {
@@ -212,7 +216,7 @@ class Mailer
 
         // На данном этапе и plain и html-версии должны быть непустые, иначе — ошибка
         if (empty($this->bodyPlain) || empty($this->bodyHtml)) {
-            throw new \Exception('Для отправки письма с двумя версиями текст должен быть и в plain и html-версии ');
+            throw new Exception('Для отправки письма с двумя версиями текст должен быть и в plain и html-версии ');
         }
 
         // Добавляем plain-версию
@@ -237,7 +241,7 @@ class Mailer
      * Формирование заголовков и текста письма
      *
      * @return array
-     * @throws \Exception
+     * @throws Exception
      */
     protected function render()
     {
@@ -448,9 +452,10 @@ class Mailer
     }
 
     /**
-     * Определяет достаточность предоставленных параметров для использования SMTP
+     * Определяет достаточность предоставленных параметров для использования SMTP и устанавливает их
      *
-     * @throws \Exception
+     * @param array $params
+     * @throws Exception
      */
     public function setSmtp($params)
     {
@@ -458,7 +463,7 @@ class Mailer
         $fields = array('server', 'port', 'user', 'password', 'domain');
         foreach ($fields as $field) {
             if (empty($params[$field])) {
-                throw new \Exception('Отсутствует поле ' . $field . ' в настройках SMTP');
+                throw new Exception('Отсутствует поле ' . $field . ' в настройках SMTP');
             }
         }
         $this->smtp = $params;
@@ -509,7 +514,7 @@ class Mailer
     {
         if (class_exists('\Ideal\Core\Config')) {
             // Получаем конфигурационные данные сайта
-            /** @noinspection PhpUnnecessaryFullyQualifiedNameInspection */
+            /** @noinspection PhpUndefinedNamespaceInspection */
             $config = \Ideal\Core\Config::getInstance();
             if (!empty($config->mailBcc)) {
                 return $config->mailBcc;
