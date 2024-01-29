@@ -339,10 +339,13 @@ class Mailer
         $password = $this->smtp['password'];
         $domain = $this->smtp['domain'];
 
+        // Уникальный идентификатор письма на основе кол-ва микросекунд
+        $msec = number_format(microtime(true) * 1000, 0, '', '');
+
         // Формируем заголовки
         $header = 'From: ' . $this->prepareEmail($from) . "\n";
         $header .= 'Reply-To: ' . $this->prepareEmail($from) . "\n";
-        $header .= 'Message-ID: <' . microtime(true) . '.' . date('YmjHis') . "@{$domain}>\n";
+        $header .= 'Message-ID: <' . $msec . "@{$domain}>\n";
         $header .= 'To: ' . $this->prepareEmail($to) . "\n";
         $header .= "Subject: {$this->subj}\n";
         $header .= $this->header;
